@@ -1,38 +1,82 @@
-import { useState } from "react";
-import Tesseract from "tesseract.js";
+import { useEffect, useState } from "react";
 
 export default function PlateScanner({
   availableSlots,
+  occupiedPlates = [],
+  apiFetch,
   onCheckIn,
   onCheckOut,
 }) {
-  const [mode, setMode] = useState("IN"); // 'IN' | 'OUT'
+  const [mode, setMode] = useState("IN");
   const [imagePreview, setImagePreview] = useState(null);
   const [licensePlate, setLicensePlate] = useState("");
+  const [vehicleType, setVehicleType] = useState("MOTORBIKE");
   const [selectedSlotId, setSelectedSlotId] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  // Xử lý quét OCR từ file ảnh
+  useEffect(() => {
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
+    e.target.value = "";
     if (!file) return;
+
+    setErrorMessage("");
+    setLicensePlate("");
+    setImagePreview(null);
+    setSelectedSlotId("");
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setErrorMessage("Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMessage("Ảnh vượt quá giới hạn 10 MB.");
+      return;
+    }
 
     setImagePreview(URL.createObjectURL(file));
     setIsProcessing(true);
 
     try {
-      const {
-        data: { text },
-      } = await Tesseract.recognize(file, "eng", {
-        tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-.",
-      });
+      const formData = new FormData();
+      formData.append("image", file);
 
-      // Lọc bỏ ký tự thừa, chỉ giữ dạng ký tự chuẩn biển số
-      const cleaned = text.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-      setLicensePlate(cleaned || "29A12345");
+      const data = await apiFetch("/tickets/scan-plate", {
+        method: "POST",
+        body: formData,
+      });
+      if (!data.success || !data.license_plate) {
+        throw new Error(
+          data.message || "Không nhận diện được biển số trong ảnh.",
+        );
+      }
+
+      setLicensePlate(data.license_plate);
+      setVehicleType(data.vehicle_type);
+
+      // Cảnh báo nếu xe đang đỗ trong bãi
+      if (mode === "IN" && occupiedPlates.includes(data.license_plate)) {
+        setErrorMessage(
+          `⚠️ CẢNH BÁO TRÙNG BIỂN SỐ: Xe [${data.license_plate}] hiện đang ở trong bãi!`,
+        );
+      }
+
+      // Tự chọn ô đỗ còn trống theo loại xe
+      const matchedSlot = availableSlots.find(
+        (s) => s.vehicle_type === data.vehicle_type,
+      );
+      if (matchedSlot) {
+        setSelectedSlotId(matchedSlot.id);
+      }
     } catch (err) {
-      console.error("Lỗi nhận dạng ảnh:", err);
-      alert("Không nhận dạng được biển số, vui lòng thử ảnh rõ nét hơn!");
+      console.error(err);
+      setErrorMessage(err.message || "Lỗi nhận diện từ AI Service.");
     } finally {
       setIsProcessing(false);
     }
@@ -40,32 +84,54 @@ export default function PlateScanner({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!licensePlate) return alert("Chưa có biển số xe!");
+    setErrorMessage("");
 
-    if (mode === "IN") {
-      if (!selectedSlotId) return alert("Vui lòng chọn ô đỗ còn trống!");
-      onCheckIn({
-        licensePlate,
-        slotId: Number(selectedSlotId),
-        ticketCode: `TCK-${Date.now().toString().slice(-6)}`,
-      });
-    } else {
-      onCheckOut(licensePlate);
+    if (!licensePlate) {
+      return setErrorMessage("Vui lòng quét hoặc nhập biển số xe!");
     }
 
-    // Reset form
-    setImagePreview(null);
-    setLicensePlate("");
+    if (mode === "IN") {
+      if (occupiedPlates.includes(licensePlate.trim().toUpperCase())) {
+        return setErrorMessage(
+          `⚠️ LỖI: Xe mang biển [${licensePlate}] đã có trong bãi, không thể check-in trùng!`,
+        );
+      }
+      if (!selectedSlotId) {
+        return setErrorMessage("Vui lòng chọn một vị trí ô đỗ còn trống!");
+      }
+
+      onCheckIn(
+        {
+          licensePlate: licensePlate.trim().toUpperCase(),
+          slotId: Number(selectedSlotId),
+          ticketCode: `TCK-${Date.now().toString().slice(-6)}`,
+        },
+        (errMsg) => setErrorMessage(errMsg),
+      );
+    } else {
+      onCheckOut(licensePlate.trim().toUpperCase(), (errMsg) =>
+        setErrorMessage(errMsg),
+      );
+    }
   };
+
+  const filteredSlots = availableSlots.filter(
+    (s) => s.vehicle_type === vehicleType,
+  );
 
   return (
     <div className="glass-card" style={{ marginBottom: "24px" }}>
+      {/* Tabs Chuyển Cổng */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "18px" }}>
         <button
-          onClick={() => setMode("IN")}
+          type="button"
+          onClick={() => {
+            setMode("IN");
+            setErrorMessage("");
+          }}
           style={{
             flex: 1,
-            padding: "10px",
+            padding: "12px",
             borderRadius: "8px",
             border: "none",
             background:
@@ -78,10 +144,14 @@ export default function PlateScanner({
           📷 CỔNG VÀO (CHECK-IN OCR)
         </button>
         <button
-          onClick={() => setMode("OUT")}
+          type="button"
+          onClick={() => {
+            setMode("OUT");
+            setErrorMessage("");
+          }}
           style={{
             flex: 1,
-            padding: "10px",
+            padding: "12px",
             borderRadius: "8px",
             border: "none",
             background:
@@ -95,11 +165,37 @@ export default function PlateScanner({
         </button>
       </div>
 
+      {/* Cảnh báo lỗi trùng biển số */}
+      {errorMessage && (
+        <div
+          style={{
+            padding: "12px 16px",
+            backgroundColor: "rgba(239, 68, 68, 0.2)",
+            border: "1px solid #ef4444",
+            borderRadius: "8px",
+            color: "#fca5a5",
+            fontSize: "14px",
+            fontWeight: "600",
+            marginBottom: "16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <span>🚨</span>
+          <div>{errorMessage}</div>
+        </div>
+      )}
+
       <form
         onSubmit={handleSubmit}
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.2fr 1fr",
+          gap: "24px",
+        }}
       >
-        {/* Khung tải ảnh */}
+        {/* Khung Tải Ảnh */}
         <div
           style={{
             border: "2px dashed var(--border-color)",
@@ -110,7 +206,7 @@ export default function PlateScanner({
         >
           <input
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             id="camera-input"
             onChange={handleImageUpload}
             style={{ display: "none" }}
@@ -122,26 +218,26 @@ export default function PlateScanner({
             {imagePreview ? (
               <img
                 src={imagePreview}
-                alt="Xe"
+                alt="Vehicle"
                 style={{
                   width: "100%",
-                  maxHeight: "160px",
+                  maxHeight: "180px",
                   objectFit: "contain",
                   borderRadius: "8px",
                 }}
               />
             ) : (
               <div style={{ padding: "30px 10px", color: "var(--text-muted)" }}>
-                <div style={{ fontSize: "32px", marginBottom: "8px" }}>📸</div>
+                <div style={{ fontSize: "36px", marginBottom: "8px" }}>📸</div>
                 <div style={{ fontSize: "13px" }}>
-                  Bấm để tải ảnh biển số xe (Camera / File)
+                  Nhấn để tải ảnh hoặc chụp biển số xe
                 </div>
               </div>
             )}
           </label>
         </div>
 
-        {/* Thông tin OCR & xác nhận */}
+        {/* Thông tin Biển số */}
         <div
           style={{
             display: "flex",
@@ -150,29 +246,52 @@ export default function PlateScanner({
           }}
         >
           <div>
-            <label
+            <div
               style={{
-                fontSize: "12px",
-                color: "var(--text-muted)",
-                display: "block",
-                marginBottom: "6px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "8px",
               }}
             >
-              KẾT QUẢ AI NHẬN DIỆN BIỂN SỐ:
-            </label>
+              <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                BIỂN SỐ NHẬN DIỆN (CÓ THỂ SỬA NHANH):
+              </label>
+              <span
+                style={{
+                  fontSize: "11px",
+                  padding: "3px 8px",
+                  borderRadius: "4px",
+                  backgroundColor:
+                    vehicleType === "CAR" ? "#3b82f6" : "#f59e0b",
+                  color: "#fff",
+                  fontWeight: "bold",
+                }}
+              >
+                {vehicleType === "CAR" ? "🚗 Ô TÔ" : "🏍️ XE MÁY"}
+              </span>
+            </div>
+
             <input
               type="text"
-              readOnly
-              value={isProcessing ? "Đang trích xuất OCR..." : licensePlate}
-              placeholder="Chờ tải ảnh..."
+              value={
+                isProcessing ? "Đang phân tích ảnh..." : licensePlate
+              }
+              onChange={(e) => {
+                setLicensePlate(e.target.value.toUpperCase());
+                setErrorMessage("");
+              }}
+              placeholder="Chờ quét ảnh hoặc nhập biển..."
               style={{
                 width: "100%",
                 padding: "12px",
                 borderRadius: "8px",
-                border: "1px solid var(--border-color)",
-                background: "rgba(0,0,0,0.3)",
+                border: errorMessage
+                  ? "1px solid #ef4444"
+                  : "1px solid var(--border-color)",
+                background: "rgba(0,0,0,0.4)",
                 color: "#fff",
-                fontSize: "18px",
+                fontSize: "20px",
                 fontWeight: "bold",
                 letterSpacing: "2px",
                 boxSizing: "border-box",
@@ -180,7 +299,7 @@ export default function PlateScanner({
             />
 
             {mode === "IN" && (
-              <div style={{ marginTop: "12px" }}>
+              <div style={{ marginTop: "14px" }}>
                 <label
                   style={{
                     fontSize: "12px",
@@ -189,7 +308,7 @@ export default function PlateScanner({
                     marginBottom: "6px",
                   }}
                 >
-                  CHỈ ĐỊNH VỊ TRÍ ĐỖ XE CÒN TRỐNG:
+                  CHỌN Ô ĐỖ ({vehicleType === "CAR" ? "KHU Ô TÔ" : "KHU XE MÁY"}):
                 </label>
                 <select
                   value={selectedSlotId}
@@ -204,8 +323,8 @@ export default function PlateScanner({
                     boxSizing: "border-box",
                   }}
                 >
-                  <option value="">-- Chọn ô trống --</option>
-                  {availableSlots.map((s) => (
+                  <option value="">-- Chọn vị trí còn trống --</option>
+                  {filteredSlots.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.slot_code} ({s.zone} - {s.vehicle_type})
                     </option>
@@ -231,8 +350,8 @@ export default function PlateScanner({
             }}
           >
             {mode === "IN"
-              ? "XÁC NHẬN MỞ BARRIER (VÀO)"
-              : "XUẤT HÓA ĐƠN & MỞ BARRIER (RA)"}
+              ? "XÁC NHẬN MỞ CỔNG (VÀO)"
+              : "XUẤT HÓA ĐƠN & MỞ CỔNG (RA)"}
           </button>
         </div>
       </form>

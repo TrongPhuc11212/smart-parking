@@ -1,9 +1,10 @@
-import { supabase } from "../config/supabase.js";
+import { createSupabaseAdminClient } from "../config/supabase.js";
 
 // Lấy danh sách toàn bộ ô đỗ xe
 export const getSlots = async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const adminSupabase = createSupabaseAdminClient();
+    const { data, error } = await adminSupabase
       .from("parking_slots")
       .select("*")
       .order("id", { ascending: true });

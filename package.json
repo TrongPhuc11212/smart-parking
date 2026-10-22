@@ -1,0 +1,19 @@
+{
+  "name": "smart-parking-system",
+  "version": "1.0.0",
+  "description": "Smart Parking Management System",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently -n \"CLIENT,SERVER\" -c \"cyan,green\" \"npm run dev --prefix client\" \"npm run dev --prefix server\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TrongPhuc11212/smart-parking.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
