@@ -11,7 +11,11 @@ export const listStaffActivity = async (req, res) => {
   const requestedPageSize = Number.parseInt(req.query.pageSize, 10) || 25;
   const pageSize = Math.min(requestedPageSize, 250);
   const { action, staffId, from, to } = req.query;
-  const validActions = ["CHECK_IN", "CHECK_OUT"];
+  const validActions = [
+    "CHECK_IN",
+    "CHECK_OUT",
+    "CHECK_OUT_UNPAID_DEPARTURE",
+  ];
   const days =
     from && to
       ? (Date.parse(`${to}T00:00:00Z`) -

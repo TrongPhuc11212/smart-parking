@@ -15,6 +15,7 @@ import {
   receiveSePayWebhook,
   getActivePlates,
   getOperationalAlerts,
+  recordUnpaidVehicleDeparture,
 } from "../controllers/ticketController.js";
 import { requireManager, requireStaff } from "../middleware/requireStaff.js";
 
@@ -96,6 +97,10 @@ router.post(
   },
 );
 router.get("/history", getTicketHistory);
+router.post(
+  "/invoices/:ticketCode/depart-unpaid",
+  recordUnpaidVehicleDeparture,
+);
 router.get("/reports/revenue", requireManager, getRevenueReport);
 router.get(
   "/invoices/:ticketCode/cancellations",

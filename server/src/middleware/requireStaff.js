@@ -8,8 +8,9 @@ export const requireStaff = async (req, res, next) => {
   }
 
   try {
-    const { data: authData, error: authError } =
-      await supabase.auth.getUser(match[1]);
+    const { data: authData, error: authError } = await supabase.auth.getUser(
+      match[1],
+    );
     if (authError || !authData.user) {
       return res.status(401).json({ message: "Phiên đăng nhập không hợp lệ." });
     }
@@ -17,16 +18,15 @@ export const requireStaff = async (req, res, next) => {
     const adminSupabase = createSupabaseAdminClient();
     const { data: profile, error: profileError } = await adminSupabase
       .from("staff_profiles")
-      .select("role, full_name, is_active")
+      .select("role, full_name")
       .eq("user_id", authData.user.id)
       .maybeSingle();
 
     if (profileError) throw profileError;
     if (!profile) {
-      return res.status(403).json({ message: "Tài khoản chưa được cấp quyền." });
-    }
-    if (!profile.is_active) {
-      return res.status(403).json({ message: "Tài khoản đã bị khóa. Hãy liên hệ quản lý." });
+      return res
+        .status(403)
+        .json({ message: "Tài khoản chưa được cấp quyền." });
     }
 
     req.user = {
@@ -44,7 +44,9 @@ export const requireStaff = async (req, res, next) => {
 
 export const requireManager = (req, res, next) => {
   if (req.user?.role !== "MANAGER") {
-    return res.status(403).json({ message: "Chỉ quản lý mới được phép thực hiện." });
+    return res
+      .status(403)
+      .json({ message: "Chỉ quản lý mới được phép thực hiện." });
   }
   next();
 };

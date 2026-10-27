@@ -29,6 +29,10 @@ export const listManagerActivity = async (req, res) => {
     "PARKING_RATE_UPDATED",
     "INVOICE_CANCELLED",
     "INVOICE_COMPLETED_MANUALLY",
+    "PARKING_SLOT_CREATED",
+    "PARKING_SLOT_UPDATED",
+    "PARKING_SLOT_ARCHIVED",
+    "PARKING_SLOT_RESTORED",
   ];
   const isDate = (value) =>
     typeof value === "string" &&

@@ -263,6 +263,7 @@ export const getTicketHistory = async (req, res) => {
     const from = req.query.from;
     const to = req.query.to;
     const paymentStatus = req.query.paymentStatus;
+    const unpaidDeparture = req.query.unpaidDeparture;
 
     if (page < 1) {
       return res.status(400).json({ message: "Số trang không hợp lệ." });
@@ -278,6 +279,14 @@ export const getTicketHistory = async (req, res) => {
     ) {
       return res.status(400).json({ message: "Trạng thái thanh toán không hợp lệ." });
     }
+    if (unpaidDeparture && unpaidDeparture !== "true") {
+      return res.status(400).json({ message: "Bộ lọc công nợ không hợp lệ." });
+    }
+    if (unpaidDeparture === "true" && req.user.role !== "MANAGER") {
+      return res.status(403).json({
+        message: "Chỉ quản lý mới được lọc danh sách xe đã rời bãi còn nợ.",
+      });
+    }
     if (
       (from && Number.isNaN(Date.parse(from))) ||
       (to && Number.isNaN(Date.parse(to)))
@@ -289,13 +298,18 @@ export const getTicketHistory = async (req, res) => {
     let query = adminSupabase
       .from("tickets")
       .select(
-        "id, ticket_code, license_plate, slot_id, check_in_time, check_out_time, total_amount, status, payment_status, settlement_method, parking_slots(slot_code, zone, vehicle_type)",
+        "id, ticket_code, license_plate, slot_id, check_in_time, check_out_time, total_amount, status, payment_status, settlement_method, departed_unpaid_at, departed_unpaid_by, departure_reason, parking_slots(slot_code, zone, vehicle_type)",
         { count: "exact" },
       )
       .order("check_in_time", { ascending: false });
 
     if (status) query = query.eq("status", status);
     if (paymentStatus) query = query.eq("payment_status", paymentStatus);
+    if (unpaidDeparture === "true") {
+      query = query
+        .not("departed_unpaid_at", "is", null)
+        .eq("payment_status", "PENDING");
+    }
     if (search) {
       query = query.or(
         `license_plate.ilike.%${search}%,ticket_code.ilike.%${search}%`,
@@ -327,10 +341,62 @@ export const getTicketHistory = async (req, res) => {
     if (error.code === "42703") {
       return res.status(503).json({
         message:
-          "Chưa cài đặt phương thức hoàn tất hóa đơn. Hãy chạy migration 20261020700000_manual_invoice_completion.sql trong Supabase SQL Editor.",
+          "Chưa cài đặt đầy đủ trạng thái xe rời bãi chưa thanh toán. Hãy chạy migration 20261021000000_unpaid_vehicle_departures.sql trong Supabase SQL Editor.",
       });
     }
     res.status(500).json({ message: "Không thể tải lịch sử vé." });
+  }
+};
+
+export const recordUnpaidVehicleDeparture = async (req, res) => {
+  const ticketCode =
+    typeof req.params.ticketCode === "string" ? req.params.ticketCode.trim() : "";
+  const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";
+
+  if (!ticketCode || ticketCode.length > 64 || reason.length < 3 || reason.length > 500) {
+    return res.status(400).json({
+      message: "Mã vé không hợp lệ. Lý do cần từ 3 đến 500 ký tự.",
+    });
+  }
+
+  try {
+    const adminSupabase = createSupabaseAdminClient();
+    const { data, error } = await adminSupabase.rpc(
+      "record_unpaid_vehicle_departure",
+      {
+        p_actor_id: req.user.id,
+        p_ticket_code: ticketCode,
+        p_reason: reason,
+      },
+    );
+    if (error) throw error;
+    if (!data.success) {
+      const status =
+        data.code === "ticket_not_found"
+          ? 404
+          : data.code === "actor_not_staff"
+            ? 403
+            : 409;
+      return res.status(status).json({ message: data.message });
+    }
+    res.json(data);
+  } catch (error) {
+    console.error("Lỗi ghi nhận xe rời bãi chưa thanh toán:", error.message);
+    if (error.code === "PGRST202" || error.code === "42883") {
+      return res.status(503).json({
+        message:
+          "Chưa cài đặt ghi nhận xe rời bãi chưa thanh toán. Hãy chạy migration 20261021000000_unpaid_vehicle_departures.sql trong Supabase SQL Editor.",
+      });
+    }
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return res.status(503).json({
+        message:
+          "Chưa cài đặt nhật ký nhân viên. Hãy chạy migration 20261020900000_staff_activity_log.sql trước migration 20261021000000_unpaid_vehicle_departures.sql.",
+      });
+    }
+    res.status(500).json({
+      message: "Không thể ghi nhận xe rời bãi chưa thanh toán.",
+    });
   }
 };
 

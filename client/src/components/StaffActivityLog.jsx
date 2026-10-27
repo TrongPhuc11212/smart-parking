@@ -4,6 +4,7 @@ const ACTIONS = [
   ["", "Tất cả hoạt động"],
   ["CHECK_IN", "Nhận xe"],
   ["CHECK_OUT", "Làm thủ tục ra xe"],
+  ["CHECK_OUT_UNPAID_DEPARTURE", "Xe rời bãi chưa thanh toán"],
 ];
 
 const formatDateTime = (value) =>
@@ -130,6 +131,7 @@ export default function StaffActivityLog({ apiFetch }) {
         ["Mã vé", (activity) => activity.ticket_code],
         ["Số tiền (VND)", (activity) => activity.amount],
         ["Mã tham chiếu thanh toán", (activity) => activity.payment_reference],
+        ["Lý do", (activity) => activity.details?.reason],
       ];
       const csv = [
         columns.map(([label]) => toCsvCell(label)).join(","),
@@ -276,6 +278,7 @@ export default function StaffActivityLog({ apiFetch }) {
                 "Ô đỗ",
                 "Mã vé",
                 "Số tiền",
+                "Lý do",
               ].map((heading) => (
                 <th
                   key={heading}
@@ -315,6 +318,9 @@ export default function StaffActivityLog({ apiFetch }) {
                   <td style={{ padding: "12px 8px" }}>{activity.ticket_code}</td>
                   <td style={{ padding: "12px 8px", whiteSpace: "nowrap" }}>
                     {formatMoney(activity.amount)}
+                  </td>
+                  <td style={{ padding: "12px 8px", minWidth: 200 }}>
+                    {activity.details?.reason || "—"}
                   </td>
                 </tr>
               ))}

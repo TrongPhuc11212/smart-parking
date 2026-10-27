@@ -1,5 +1,18 @@
+const vehicleSections = [
+  { type: "CAR", label: "KHU VỰC Ô TÔ", icon: "🚘" },
+  { type: "MOTORBIKE", label: "KHU VỰC XE MÁY", icon: "🏍️" },
+];
+
 export default function ParkingMatrix({ slots }) {
-  const zones = ["Khu A", "Khu B"];
+  const sections = vehicleSections
+    .map((section) => {
+      const sectionSlots = slots.filter(
+        (slot) => slot.vehicle_type === section.type,
+      );
+      const zones = [...new Set(sectionSlots.map((slot) => slot.zone).filter(Boolean))];
+      return { ...section, slots: sectionSlots, zones };
+    })
+    .filter((section) => section.slots.length > 0);
 
   return (
     <div className="glass-card">
@@ -13,85 +26,59 @@ export default function ParkingMatrix({ slots }) {
         🗺️ SƠ ĐỒ MẶT BẰNG BÃI ĐỖ XE (REAL-TIME MATRIX)
       </h3>
 
-      {zones.map((zoneName) => {
-        const zoneSlots = slots.filter((s) => s.zone === zoneName);
-        return (
-          <div key={zoneName} style={{ marginBottom: "20px" }}>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "var(--text-muted)",
-                marginBottom: "10px",
-                fontWeight: "600",
-              }}
-            >
-              {zoneName.toUpperCase()}
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))",
-                gap: "12px",
-              }}
-            >
-              {zoneSlots.map((slot) => {
-                const isOccupied = slot.status === "OCCUPIED";
-                return (
-                  <div
-                    key={slot.id}
-                    style={{
-                      padding: "16px 8px",
-                      borderRadius: "10px",
-                      textAlign: "center",
-                      background: isOccupied
-                        ? "rgba(239, 68, 68, 0.15)"
-                        : "rgba(16, 185, 129, 0.15)",
-                      border: `1px solid ${isOccupied ? "var(--accent-red)" : "var(--accent-green)"}`,
-                      boxShadow: isOccupied
-                        ? "0 0 12px rgba(239,68,68,0.2)"
-                        : "0 0 12px rgba(16,185,129,0.2)",
-                      transition: "all 0.3s ease",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: "800",
-                        color: isOccupied
-                          ? "var(--accent-red)"
-                          : "var(--accent-green)",
-                      }}
-                    >
-                      {slot.slot_code}
+      <div className="parking-lot">
+        {sections.map((section) => (
+          <section
+            className={`parking-lot__section parking-lot__section--${section.type.toLowerCase()}`}
+            key={section.type}
+            aria-label={section.label}
+          >
+            <h4 className="parking-lot__section-title">
+              <span aria-hidden="true">{section.icon}</span>
+              {section.label}
+              <span className="parking-lot__section-count">
+                {section.slots.length} vị trí
+              </span>
+            </h4>
+
+            {section.zones.map((zoneName, index) => {
+              const zoneSlots = section.slots.filter(
+                (slot) => slot.zone === zoneName,
+              );
+              return (
+                <div key={zoneName}>
+                  {index > 0 && (
+                    <div className="parking-lot__aisle" aria-hidden="true">
+                      LỐI LƯU THÔNG
                     </div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-muted)",
-                        marginTop: "4px",
-                      }}
-                    >
-                      {slot.vehicle_type}
+                  )}
+                  <div className="parking-lot__zone">
+                    <div className="parking-lot__zone-title">
+                      <span>{zoneName.toUpperCase()}</span>
+                      <span>{zoneSlots.length} ô</span>
                     </div>
-                    <div
-                      style={{
-                        marginTop: "8px",
-                        fontSize: "10px",
-                        fontWeight: "700",
-                        color: isOccupied
-                          ? "var(--accent-red)"
-                          : "var(--accent-green)",
-                      }}
-                    >
-                      {isOccupied ? "CÓ XE" : "TRỐNG"}
+                    <div className="parking-lot__slots">
+                      {zoneSlots.map((slot) => {
+                        const isOccupied = slot.status === "OCCUPIED";
+                        return (
+                          <div
+                            key={slot.id}
+                            className={`parking-stall ${isOccupied ? "parking-stall--occupied" : "parking-stall--available"}`}
+                            aria-label={`${slot.slot_code}: ${isOccupied ? "Đang có xe" : "Còn trống"}`}
+                          >
+                            <strong>{slot.slot_code}</strong>
+                            <span>{isOccupied ? "CÓ XE" : "TRỐNG"}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+                </div>
+              );
+            })}
+          </section>
+        ))}
+      </div>
     </div>
   );
 }

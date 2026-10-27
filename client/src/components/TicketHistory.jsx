@@ -31,6 +31,7 @@ export default function TicketHistory({
   const [filters, setFilters] = useState({
     search: initialSearch,
     status: "",
+    unpaidDeparture: "",
     from: "",
     to: "",
   });
@@ -48,6 +49,9 @@ export default function TicketHistory({
   const [isCompletingManually, setIsCompletingManually] = useState(false);
   const [showManualCompletionForm, setShowManualCompletionForm] = useState(false);
   const [manualCompletionReason, setManualCompletionReason] = useState("");
+  const [showDepartureForm, setShowDepartureForm] = useState(false);
+  const [departureReason, setDepartureReason] = useState("");
+  const [isRecordingDeparture, setIsRecordingDeparture] = useState(false);
   const [invoiceActionMessage, setInvoiceActionMessage] = useState("");
   const [invoiceActionError, setInvoiceActionError] = useState("");
   const cancellationLoadId = useRef(0);
@@ -219,6 +223,19 @@ export default function TicketHistory({
           <option value="UNKNOWN">Chưa xác minh</option>
           <option value="CANCELLED">Hóa đơn đã hủy</option>
         </select>
+        {isManager && (
+          <select
+            aria-label="Lọc công nợ xe đã rời bãi"
+            value={filters.unpaidDeparture}
+            onChange={(event) =>
+              updateFilter("unpaidDeparture", event.target.value)
+            }
+            style={inputStyle}
+          >
+            <option value="">Tất cả lượt xe</option>
+            <option value="true">Xe đã rời bãi · còn nợ</option>
+          </select>
+        )}
         <label style={{ color: "var(--text-muted)", fontSize: "12px" }}>
           Từ ngày
           <input
@@ -313,8 +330,11 @@ export default function TicketHistory({
                               : "var(--text-muted)",
                       }}
                     >
-                      {ticket.payment_status === "PENDING"
-                        ? "Chờ thanh toán"
+                      {ticket.departed_unpaid_at &&
+                      ticket.payment_status === "PENDING"
+                        ? "Đã rời bãi · còn nợ"
+                        : ticket.payment_status === "PENDING"
+                          ? "Chờ thanh toán"
                         : ticket.payment_status === "CANCELLED"
                           ? "Đang gửi · hóa đơn đã hủy"
                         : ticket.status === "ACTIVE"
@@ -430,7 +450,9 @@ export default function TicketHistory({
                 [
                   "Trạng thái",
                   selectedTicket.payment_status === "PENDING"
-                    ? "Chờ thanh toán"
+                    ? selectedTicket.departed_unpaid_at
+                      ? "Đã rời bãi, chưa thanh toán"
+                      : "Chờ thanh toán"
                     : selectedTicket.status === "ACTIVE"
                       ? "Đang gửi"
                       : "Hoàn tất",
@@ -454,6 +476,14 @@ export default function TicketHistory({
                 ["Khu vực", selectedTicket.parking_slots?.zone || "—"],
                 ["Giờ vào", formatDateTime(selectedTicket.check_in_time)],
                 ["Giờ ra", formatDateTime(selectedTicket.check_out_time)],
+                ...(selectedTicket.departed_unpaid_at
+                  ? [
+                      [
+                        "Rời bãi khi chưa thanh toán",
+                        formatDateTime(selectedTicket.departed_unpaid_at),
+                      ],
+                    ]
+                  : []),
                 ["Phí gửi xe", formatMoney(selectedTicket.total_amount)],
                 ...(selectedTicket.settlement_method === "MANUAL"
                   ? [["Phương thức", "Hoàn tất thủ công bởi quản lý"]]
@@ -557,7 +587,153 @@ export default function TicketHistory({
                 {invoiceActionMessage}
               </p>
             )}
-            {isManager && selectedTicket.payment_status === "PENDING" && (
+            {selectedTicket.departed_unpaid_at && (
+              <section
+                aria-label="Công nợ xe đã rời bãi"
+                style={{
+                  marginTop: 16,
+                  padding: 12,
+                  border: "1px solid rgba(248, 113, 113, 0.3)",
+                  borderRadius: 10,
+                  background: "rgba(127, 29, 29, 0.12)",
+                }}
+              >
+                <strong style={{ color: "#fca5a5" }}>
+                  {selectedTicket.payment_status === "PENDING"
+                    ? "Khoản cần thu: "
+                    : "Đã thanh toán: "}
+                  {formatMoney(selectedTicket.total_amount)}
+                </strong>
+                <div
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: 12,
+                    marginTop: 6,
+                  }}
+                >
+                  {selectedTicket.departure_reason}
+                </div>
+              </section>
+            )}
+            {selectedTicket.status === "ACTIVE" &&
+              selectedTicket.payment_status === "PENDING" && (
+                <section style={{ marginTop: 16 }}>
+                  {!showDepartureForm ? (
+                    <button
+                      type="button"
+                      className="cancel-invoice-button"
+                      disabled={isRecordingDeparture}
+                      onClick={() => {
+                        setInvoiceActionError("");
+                        setInvoiceActionMessage("");
+                        setShowDepartureForm(true);
+                      }}
+                    >
+                      Ghi nhận xe đã rời bãi chưa thanh toán
+                    </button>
+                  ) : (
+                    <form
+                      className="manual-completion-form"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        const confirmed = window.confirm(
+                          `Xác nhận xe ${selectedTicket.license_plate} đã rời bãi khi chưa thanh toán ${formatMoney(selectedTicket.total_amount)}? Ô đỗ sẽ được giải phóng nhưng hóa đơn vẫn là khoản chưa thu.`,
+                        );
+                        if (!confirmed) return;
+
+                        setIsRecordingDeparture(true);
+                        setInvoiceActionError("");
+                        setInvoiceActionMessage("");
+                        try {
+                          const result = await apiFetch(
+                            `/tickets/invoices/${encodeURIComponent(selectedTicket.ticket_code)}/depart-unpaid`,
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                reason: departureReason.trim(),
+                              }),
+                            },
+                          );
+                          const updatedTicket = {
+                            ...selectedTicket,
+                            status: "COMPLETED",
+                            departed_unpaid_at: result.departedAt,
+                            departure_reason: result.reason,
+                          };
+                          setSelectedTicket(updatedTicket);
+                          setHistory((current) => ({
+                            ...current,
+                            tickets: current.tickets.map((ticket) =>
+                              ticket.ticket_code === selectedTicket.ticket_code
+                                ? updatedTicket
+                                : ticket,
+                            ),
+                          }));
+                          setDepartureReason("");
+                          setShowDepartureForm(false);
+                          setInvoiceActionMessage(
+                            `Đã ghi nhận xe rời bãi. Ô ${result.slotCode} đã được giải phóng; hóa đơn vẫn chờ thu.`,
+                          );
+                        } catch (error) {
+                          setInvoiceActionError(
+                            error.message ||
+                              "Không thể ghi nhận xe rời bãi chưa thanh toán.",
+                          );
+                        } finally {
+                          setIsRecordingDeparture(false);
+                        }
+                      }}
+                    >
+                      <p>
+                        Thao tác này giải phóng ô đỗ nhưng không xác nhận đã thu
+                        tiền. Nhập lý do và xác nhận xe thực tế đã rời bãi.
+                      </p>
+                      <label>
+                        Lý do ghi nhận (bắt buộc)
+                        <textarea
+                          required
+                          minLength={3}
+                          maxLength={500}
+                          rows={3}
+                          value={departureReason}
+                          onChange={(event) =>
+                            setDepartureReason(event.target.value)
+                          }
+                          placeholder="Ví dụ: khách rời bãi trước khi thanh toán"
+                        />
+                      </label>
+                      <div className="manual-completion-actions">
+                        <button
+                          type="submit"
+                          className="cancel-invoice-button"
+                          disabled={
+                            isRecordingDeparture ||
+                            departureReason.trim().length < 3
+                          }
+                        >
+                          {isRecordingDeparture
+                            ? "Đang ghi nhận..."
+                            : "Xác nhận xe đã rời"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isRecordingDeparture}
+                          onClick={() => {
+                            setShowDepartureForm(false);
+                            setDepartureReason("");
+                          }}
+                        >
+                          Hủy
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </section>
+              )}
+            {isManager &&
+              selectedTicket.payment_status === "PENDING" &&
+              !selectedTicket.departed_unpaid_at && (
               <div className="invoice-manager-actions">
                 {!showManualCompletionForm ? (
                   <button

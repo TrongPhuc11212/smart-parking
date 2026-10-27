@@ -7,6 +7,10 @@ const ACTIONS = [
   ["PARKING_RATE_UPDATED", "Đổi bảng giá"],
   ["INVOICE_CANCELLED", "Hủy hóa đơn"],
   ["INVOICE_COMPLETED_MANUALLY", "Hoàn tất thủ công"],
+  ["PARKING_SLOT_CREATED", "Thêm vị trí đỗ"],
+  ["PARKING_SLOT_UPDATED", "Sửa vị trí đỗ"],
+  ["PARKING_SLOT_ARCHIVED", "Ngừng sử dụng vị trí"],
+  ["PARKING_SLOT_RESTORED", "Khôi phục vị trí"],
 ];
 
 const formatDateTime = (value) =>
@@ -31,6 +35,12 @@ const describeActivity = (activity) => {
       return `Hủy hóa đơn vé ${activity.target_id} · ${details.licensePlate || ""} · ${formatMoney(details.amount)}`;
     case "INVOICE_COMPLETED_MANUALLY":
       return `Hoàn tất thủ công vé ${activity.target_id} · ${details.licensePlate || ""} · ${formatMoney(details.amount)}`;
+    case "PARKING_SLOT_CREATED":
+    case "PARKING_SLOT_ARCHIVED":
+    case "PARKING_SLOT_RESTORED":
+      return `${details.slotCode || activity.target_id} · ${details.zone || ""} · ${details.vehicleType === "CAR" ? "Ô tô" : "Xe máy"}`;
+    case "PARKING_SLOT_UPDATED":
+      return `${details.before?.slotCode || activity.target_id} → ${details.after?.slotCode || activity.target_id} · ${details.after?.zone || ""}`;
     default:
       return `${activity.action} · ${activity.target_id}`;
   }

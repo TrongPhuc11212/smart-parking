@@ -1,5 +1,9 @@
 # React + Vite
 
+## Public parking availability
+
+Open `/availability` on the deployed client to show the parking-space status without signing in. The page refreshes automatically every 15 seconds and only displays slot codes, zones, vehicle types, and availability. The corresponding public API is `/api/slots/public`; staff operations and the full slot endpoint still require authentication. Use the deployed `/availability` URL as the destination when creating a QR code for visitors.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

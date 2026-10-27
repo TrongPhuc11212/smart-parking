@@ -11,12 +11,22 @@ import ParkingRateManagement from "./components/ParkingRateManagement";
 import ManagerActivityLog from "./components/ManagerActivityLog";
 import StaffActivityLog from "./components/StaffActivityLog";
 import OperationalAlerts from "./components/OperationalAlerts";
+import ParkingSlotManagement from "./components/ParkingSlotManagement";
+import PublicAvailability from "./components/PublicAvailability";
 import "./components/LoginScreen.css";
 import { supabase } from "./services/supabase";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
 
 export default function App() {
+  if (window.location.pathname === "/availability") {
+    return <PublicAvailability apiBase={API_BASE} />;
+  }
+
+  return <StaffApp />;
+}
+
+function StaffApp() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -240,6 +250,7 @@ export default function App() {
               ? [
                   { id: "reports", label: "Báo cáo doanh thu" },
                   { id: "rates", label: "Cấu hình giá" },
+                  { id: "slots", label: "Quản lý vị trí đỗ" },
                   { id: "activity", label: "Nhật ký hoạt động" },
                   { id: "staff-activity", label: "Nhật ký nhân viên" },
                   { id: "staff", label: "Quản lý nhân viên" },
@@ -308,6 +319,8 @@ export default function App() {
         <RevenueReport apiFetch={apiFetch} />
       ) : currentView === "rates" ? (
         <ParkingRateManagement apiFetch={apiFetch} />
+      ) : currentView === "slots" ? (
+        <ParkingSlotManagement apiFetch={apiFetch} />
       ) : currentView === "activity" ? (
         <ManagerActivityLog apiFetch={apiFetch} />
       ) : currentView === "staff-activity" ? (
