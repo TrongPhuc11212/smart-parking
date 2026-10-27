@@ -79,11 +79,11 @@ export default function ParkingSlotManagement({ apiFetch }) {
   };
 
   const setSlotActive = async (slot, isActive) => {
-    const action = isActive ? "khôi phục" : "ngừng sử dụng";
+    const action = isActive ? "khôi phục" : "xóa";
     const confirmed = window.confirm(
       isActive
         ? `Khôi phục vị trí ${slot.slot_code} để nhận xe?`
-        : `Ngừng sử dụng vị trí ${slot.slot_code}? Lịch sử vé cũ vẫn được giữ.`,
+        : `Xóa vị trí ${slot.slot_code} khỏi danh sách sử dụng? Lịch sử vé được giữ nguyên và vị trí có thể khôi phục sau.`,
     );
     if (!confirmed) return;
 
@@ -98,7 +98,7 @@ export default function ParkingSlotManagement({ apiFetch }) {
       setSuccessMessage(
         isActive
           ? `Đã khôi phục vị trí ${slot.slot_code}.`
-          : `Đã ngừng sử dụng vị trí ${slot.slot_code}.`,
+          : `Đã xóa vị trí ${slot.slot_code} khỏi danh sách sử dụng. Lịch sử vé vẫn được giữ.`,
       );
       if (editingId === slot.id) resetForm();
       setRefreshKey((current) => current + 1);
@@ -109,6 +109,26 @@ export default function ParkingSlotManagement({ apiFetch }) {
     }
   };
 
+  const deleteSlotByCode = () => {
+    const slotCode = draft.slotCode.trim().toUpperCase();
+    if (!slotCode) {
+      setErrorMessage("Nhập mã vị trí cần xóa.");
+      setSuccessMessage("");
+      return;
+    }
+
+    const slot = slots.find(
+      (item) => item.slot_code.toUpperCase() === slotCode && item.is_active,
+    );
+    if (!slot) {
+      setErrorMessage(`Không tìm thấy vị trí đang sử dụng có mã ${slotCode}.`);
+      setSuccessMessage("");
+      return;
+    }
+
+    setSlotActive(slot, false);
+  };
+
   return (
     <section className="glass-card" aria-labelledby="parking-slots-heading">
       <h2 id="parking-slots-heading" style={{ margin: "0 0 6px" }}>
@@ -116,8 +136,9 @@ export default function ParkingSlotManagement({ apiFetch }) {
       </h2>
       <p style={{ color: "var(--text-muted)", margin: "0 0 18px" }}>
         Thêm khu vực và ô đỗ tùy ý. Vị trí đang có xe hoặc vé còn hoạt động
-        không thể sửa hay ngừng sử dụng. Vị trí ngừng sử dụng được lưu lại để
-        bảo toàn lịch sử vé và có thể khôi phục.
+        không thể sửa hay xóa. Xóa vị trí sẽ ngừng đưa vị trí vào sử dụng,
+        giữ nguyên lịch sử vé và cho phép khôi phục sau. Để xóa nhanh, nhập
+        chính xác mã vị trí rồi chọn “Xóa vị trí”.
       </p>
 
       {errorMessage && (
@@ -189,16 +210,32 @@ export default function ParkingSlotManagement({ apiFetch }) {
             <option value="MOTORBIKE">Xe máy</option>
           </select>
         </label>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="submit" disabled={isSaving}>
+        <div className="slot-management-actions">
+          <button className="slot-management-action" type="submit" disabled={isSaving}>
             {isSaving
               ? "Đang lưu..."
               : editingId === null
                 ? "Thêm vị trí"
                 : "Lưu chỉnh sửa"}
           </button>
+          {editingId === null && (
+            <button
+              type="button"
+              className="cancel-invoice-button slot-management-action"
+              disabled={isSaving || busySlotId !== null || isLoading}
+              onClick={deleteSlotByCode}
+              title="Tìm vị trí theo mã đang nhập rồi xóa khỏi danh sách sử dụng."
+            >
+              Xóa vị trí
+            </button>
+          )}
           {editingId !== null && (
-            <button type="button" onClick={resetForm} disabled={isSaving}>
+            <button
+              className="slot-management-action"
+              type="button"
+              onClick={resetForm}
+              disabled={isSaving}
+            >
               Hủy sửa
             </button>
           )}
@@ -285,9 +322,14 @@ export default function ParkingSlotManagement({ apiFetch }) {
                               type="button"
                               className="cancel-invoice-button"
                               disabled={isBusy || slot.status !== "AVAILABLE"}
+                              title={
+                                slot.status !== "AVAILABLE"
+                                  ? "Chỉ có thể xóa vị trí đang trống."
+                                  : "Xóa vị trí khỏi danh sách sử dụng; lịch sử vé vẫn được giữ."
+                              }
                               onClick={() => setSlotActive(slot, false)}
                             >
-                              Ngừng dùng
+                              Xóa vị trí
                             </button>
                           </>
                         ) : (

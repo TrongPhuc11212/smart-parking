@@ -386,6 +386,23 @@
   color: #fecaca !important;
 }
 
+.slot-management-actions {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+}
+
+.slot-management-actions .slot-management-action {
+  min-width: 0;
+  flex: 1 1 0;
+  white-space: nowrap;
+}
+
+.slot-management-actions .cancel-invoice-button {
+  width: auto;
+  margin-top: 0;
+}
+
 .cancel-invoice-button:hover:not(:disabled) {
   border-color: rgba(248, 113, 113, 0.7) !important;
   background: rgba(239, 68, 68, 0.22) !important;

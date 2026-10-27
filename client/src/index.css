@@ -489,6 +489,15 @@ textarea:focus-visible {
   gap: 8px;
 }
 
+.parking-lot__section--car .parking-lot__slots {
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.parking-lot__section--car .parking-stall {
+  min-height: 78px;
+}
+
 .parking-stall {
   display: flex;
   min-height: 58px;
@@ -611,6 +620,15 @@ textarea:focus-visible {
   .parking-lot__slots {
     grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
     gap: 6px;
+  }
+
+  .parking-lot__section--car .parking-lot__slots {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+  }
+
+  .parking-lot__section--car .parking-stall {
+    min-height: 70px;
   }
 }
 
