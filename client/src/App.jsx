@@ -237,9 +237,7 @@ function StaffApp() {
   }
 
   return (
-    <div
-      style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 20px 40px" }}
-    >
+    <div className="app-shell">
       <Navbar />
       <header className="app-toolbar">
         <nav className="app-nav" aria-label="Điều hướng bãi đỗ">
@@ -341,6 +339,7 @@ function LoginScreen({ error, onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -355,35 +354,75 @@ function LoginScreen({ error, onLogin }) {
   return (
     <main className="auth-screen">
       <form className="glass-card auth-card" onSubmit={handleSubmit}>
-        <div style={{ fontSize: "36px" }}>🅿️</div>
-        <h1 style={{ margin: "8px 0" }}>Đăng nhập bãi xe</h1>
-        <p style={{ color: "var(--text-muted)", marginTop: 0 }}>
-          Dành cho nhân viên và quản lý được cấp tài khoản.
-        </p>
-        <label>
+        <div className="auth-brand" aria-hidden="true">
+          <span>🅿️</span>
+          <span>SMART PARKING</span>
+        </div>
+        <div className="auth-heading">
+          <h1>Đăng nhập hệ thống</h1>
+          <p>Dành cho nhân viên và quản lý bãi đỗ xe.</p>
+        </div>
+        <label className="auth-field">
           Email
           <input
             type="email"
             autoComplete="username"
             required
+            placeholder="example@email.com"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
         </label>
-        <label>
+        <label className="auth-field">
           Mật khẩu
-          <input
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
+          <span className="auth-password-wrap">
+            <input
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              required
+              placeholder="Nhập mật khẩu được cấp"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <button
+              className="auth-password-toggle"
+              type="button"
+              onClick={() => setShowPassword((visible) => !visible)}
+              aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+              aria-pressed={showPassword}
+            >
+              {showPassword ? (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A10.7 10.7 0 0 1 12 5c5.5 0 9 7 9 7a15 15 0 0 1-3.1 3.8M6.2 6.2C3.9 7.7 3 12 3 12s3.5 7 9 7a10 10 0 0 0 3-.5" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 12s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7Z" />
+                  <circle cx="12" cy="12" r="2.5" />
+                </svg>
+              )}
+            </button>
+          </span>
+          <span className="auth-field-hint">
+            Mật khẩu mới được quản lý tạo cần tối thiểu 12 ký tự. Nếu đã có tài
+            khoản, hãy nhập mật khẩu hiện tại.
+          </span>
         </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={isSubmitting}>
+        {error && (
+          <p className="auth-error" role="alert">
+            {error}
+          </p>
+        )}
+        <button
+          className="auth-submit"
+          type="submit"
+          disabled={isSubmitting}
+        >
           {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
         </button>
+        <p className="auth-footer">
+          Chỉ tài khoản được quản lý cấp mới có thể truy cập hệ thống.
+        </p>
       </form>
     </main>
   );
