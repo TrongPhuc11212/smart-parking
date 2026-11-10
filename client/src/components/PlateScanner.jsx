@@ -15,6 +15,15 @@ export default function PlateScanner({
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const handleVehicleTypeChange = (nextVehicleType) => {
+    setVehicleType(nextVehicleType);
+    const matchedSlot = availableSlots.find(
+      (slot) => slot.vehicle_type === nextVehicleType,
+    );
+    setSelectedSlotId(matchedSlot ? String(matchedSlot.id) : "");
+    setErrorMessage("");
+  };
+
   useEffect(() => {
     return () => {
       if (imagePreview) URL.revokeObjectURL(imagePreview);
@@ -57,8 +66,12 @@ export default function PlateScanner({
         );
       }
 
+      if (!["CAR", "MOTORBIKE"].includes(data.vehicle_type)) {
+        throw new Error("AI trả về loại phương tiện không hợp lệ.");
+      }
+
       setLicensePlate(data.license_plate);
-      setVehicleType(data.vehicle_type);
+      handleVehicleTypeChange(data.vehicle_type);
 
       // Cảnh báo nếu xe đang đỗ trong bãi
       if (mode === "IN" && occupiedPlates.includes(data.license_plate)) {
@@ -67,13 +80,6 @@ export default function PlateScanner({
         );
       }
 
-      // Tự chọn ô đỗ còn trống theo loại xe
-      const matchedSlot = availableSlots.find(
-        (s) => s.vehicle_type === data.vehicle_type,
-      );
-      if (matchedSlot) {
-        setSelectedSlotId(matchedSlot.id);
-      }
     } catch (err) {
       console.error(err);
       setErrorMessage(err.message || "Lỗi nhận diện từ AI Service.");
@@ -96,7 +102,10 @@ export default function PlateScanner({
           `⚠️ LỖI: Xe mang biển [${licensePlate}] đã có trong bãi, không thể check-in trùng!`,
         );
       }
-      if (!selectedSlotId) {
+      const selectedSlot = filteredSlots.find(
+        (slot) => String(slot.id) === selectedSlotId,
+      );
+      if (!selectedSlot) {
         return setErrorMessage("Vui lòng chọn một vị trí ô đỗ còn trống!");
       }
 
@@ -104,7 +113,6 @@ export default function PlateScanner({
         {
           licensePlate: licensePlate.trim().toUpperCase(),
           slotId: Number(selectedSlotId),
-          ticketCode: `TCK-${Date.now().toString().slice(-6)}`,
         },
         (errMsg) => setErrorMessage(errMsg),
       );
@@ -299,38 +307,78 @@ export default function PlateScanner({
             />
 
             {mode === "IN" && (
-              <div style={{ marginTop: "14px" }}>
-                <label
-                  style={{
-                    fontSize: "12px",
-                    color: "var(--text-muted)",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  CHỌN Ô ĐỖ ({vehicleType === "CAR" ? "KHU Ô TÔ" : "KHU XE MÁY"}):
-                </label>
-                <select
-                  value={selectedSlotId}
-                  onChange={(e) => setSelectedSlotId(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid var(--border-color)",
-                    background: "var(--card-bg)",
-                    color: "#fff",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <option value="">-- Chọn vị trí còn trống --</option>
-                  {filteredSlots.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.slot_code} ({s.zone} - {s.vehicle_type})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div style={{ marginTop: "14px" }}>
+                  <label
+                    htmlFor="vehicle-type"
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      display: "block",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    LOẠI PHƯƠNG TIỆN (AI GỢI Ý - CÓ THỂ ĐỔI):
+                  </label>
+                  <select
+                    id="vehicle-type"
+                    value={vehicleType}
+                    onChange={(e) => handleVehicleTypeChange(e.target.value)}
+                    disabled={isProcessing}
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border-color)",
+                      background: "var(--card-bg)",
+                      color: "#fff",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <option value="CAR">Ô tô</option>
+                    <option value="MOTORBIKE">Xe máy</option>
+                  </select>
+                </div>
+                <div style={{ marginTop: "14px" }}>
+                  <label
+                    htmlFor="parking-slot"
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      display: "block",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    CHỌN Ô ĐỖ ({vehicleType === "CAR" ? "KHU Ô TÔ" : "KHU XE MÁY"}):
+                  </label>
+                  <select
+                    id="parking-slot"
+                    value={selectedSlotId}
+                    onChange={(e) => setSelectedSlotId(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border-color)",
+                      background: "var(--card-bg)",
+                      color: "#fff",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <option value="">-- Chọn vị trí còn trống --</option>
+                    {filteredSlots.length === 0 && (
+                      <option value="" disabled>
+                        Không còn vị trí trống cho loại xe này
+                      </option>
+                    )}
+                    {filteredSlots.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.slot_code} ({s.zone} - {s.vehicle_type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
             )}
           </div>
 
